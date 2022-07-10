@@ -3,7 +3,10 @@ const express = require('express')
 const ejs = require('ejs')
 const bodyParser = require('body-parser')
 const mongoose = require('mongoose')
-const encrypt = require('mongoose-encryption')
+// const encrypt = require('mongoose-encryption')
+// const md5 = require('md5')
+const bcrypt = require('bcrypt')
+const saltRounds = 10 
 
 const app = express()
 
@@ -18,9 +21,8 @@ const userSchema = new mongoose.Schema({
     email : String,
     password : String
 })
-const secret = process.env.SECRET
-
-userSchema.plugin(encrypt , {secret : secret , encryptedFields: ['password']})
+// const secret = process.env.SECRET
+// userSchema.plugin(encrypt , {secret : secret , encryptedFields: ['password']})
 
 const User = mongoose.model("User" , userSchema)
 
@@ -37,9 +39,10 @@ app.get("/register" , (req, res) => {
 })
 
 app.post("/register" , (req , res) => {
-    const newUser = new User({
+    bcrypt.hash(req.body.password , saltRounds , (err , hash) =>{
+      const newUser = new User({
         email : req.body.username,
-        password : req.body.password
+        password : hash                                      //using bcrypt for hashing and salting
     })
     newUser.save((err) => {
         if(!err){
@@ -47,23 +50,30 @@ app.post("/register" , (req , res) => {
         }else{
             console.log(err)
         }
+    })  
     })
+
+    
 })
 app.post("/login" , (req ,res) => {
     const username = req.body.username
-    const password = req.body.password
+    const password = req.body.password                      // md5() hashing with md5 in prev ver
 
     User.findOne({email : username} , (err , foundUser) => {
         if(err){
             console.log(err);
         }else{
             if(foundUser){
-                if(foundUser.password === password){
-                    res.render("secrets")
-                }
-                else{
-                    console.log("wrong password");
-                }
+
+                bcrypt.compare(password, foundUser.password , function(err, result) {  //decrypting hash with compare 
+                    if(result === true){
+                        res.render("secrets")
+                    }else{
+                        console.log(err)
+                        console.log("wrong password");
+                    }
+                })
+                    
             }else{
                 console.log("user does not exists");
             }
