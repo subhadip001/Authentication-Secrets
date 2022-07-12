@@ -32,7 +32,8 @@ mongoose.connect("mongodb://localhost:27017/userDB")
 const userSchema = new mongoose.Schema({
     email : String,
     password : String,
-    googleId : String
+    googleId : String,
+    secret : String
 })
 // const secret = process.env.SECRET
 // userSchema.plugin(encrypt , {secret : secret , encryptedFields: ['password']})
@@ -85,6 +86,19 @@ passport.use(new GoogleStrategy({
 app.get("/" , (req, res) => {
     res.render("home")
 })
+
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile'] })
+);
+
+app.get('/auth/google/secrets', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect the page.
+    res.redirect("/secrets");
+});
+  
+
 app.get("/login" , (req, res) => {
     res.render("login")
 })
@@ -93,8 +107,20 @@ app.get("/register" , (req, res) => {
 })
 
 app.get("/secrets" , (req , res) => {
-    if(req.isAuthenticated()){
-        res.render("secrets")
+    User.find({"secret" : {$ne : null}} , (err , foundUsers) => {
+        if(err){
+            console.log(err);
+        }else{
+            if(foundUsers){
+            res.render("secrets" , {usersWithSecrets : foundUsers})
+            }
+        }
+    })
+})
+
+app.get("/submit" , (req , res) => {
+    if(req.isAuthenticated() === true){
+        res.render("submit")
     }else{
         res.redirect("/login")
     }
@@ -109,17 +135,7 @@ app.get("/logout" , (req , res) => {
     res.redirect("/")
 })
 
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile'] })
-);
 
-app.get('/auth/google/secrets', 
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  function(req, res) {
-    // Successful authentication, redirect the page.
-    res.redirect("/secrets");
-});
-  
 
 
 
@@ -151,6 +167,24 @@ app.post("/login" , (req ,res) => {
             passport.authenticate("local")(req , res , () => {
                 res.redirect("/secrets")
             })
+        }
+    })
+})
+
+app.post("/submit" , (req , res) => {
+    const newSecret = req.body.secret
+    console.log(req.user.id);
+
+    User.findById({_id : req.user.id} , (err , foundUser) => {
+        if(err){
+            console.log(err)
+        }else{
+            if(foundUser){
+                foundUser.secret = newSecret;
+                foundUser.save(() =>{
+                    res.redirect("/secrets")
+                })
+            }
         }
     })
 })
